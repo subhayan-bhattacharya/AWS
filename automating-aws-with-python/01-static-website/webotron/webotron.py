@@ -3,10 +3,12 @@ import boto3
 import click
 import os
 import json
-import requests
+from pathlib import Path
+import mimetypes
 
 session = boto3.Session(profile_name="subhayan_aws")
 resource = session.resource("s3")
+
 
 
 def _upload_object_to_s3(object: str, bucket: str, object_type: str, *args, **kwargs ) -> None:
@@ -19,6 +21,15 @@ def _upload_object_to_s3(object: str, bucket: str, object_type: str, *args, **kw
                     full_file_name = os.path.join(dirs, file)
                     s3_file_name = os.path.join(os.path.basename(dirs), file)
                     resource.Bucket(bucket).upload_file(Filename=full_file_name, Key=s3_file_name)
+    except Exception as e:
+        raise e
+
+
+def _upload_object_when_key_available(bucket: str, object: str, key: str) -> None:
+    try:
+        content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+        resource.Bucket(bucket).upload_file(Filename=object, Key=key,
+                                            ExtraArgs={"ContentType": content_type})
     except Exception as e:
         raise e
 
@@ -107,7 +118,7 @@ def upload_object_to_bucket(bucket: str, object: str, object_type: str):
             raise NotADirectoryError(f"The object {object} is not a directory")
     try:
         if object_type == "file":
-            _upload_object_to_s3(object, bucket, object_type, ExtraArgs={"ContentType": "text/html"})
+            _upload_object_to_s3(object, bucket, object_type, ExtraArgs={"ContentType": 'text/html'})
         else:
             _upload_object_to_s3(object, bucket, object_type)
     except Exception as e:
@@ -124,6 +135,27 @@ def list_buckets() -> None:
         print(buckets)
     except Exception as e:
         print(e)
+
+
+@cli.command('sync-dir')
+@click.argument('bucket')
+@click.argument('pathname', type=click.Path(exists=True))
+def sync_dir(bucket: str, pathname: str) -> None:
+    "Sync contents of pathname to bucket... very similar to the other command which uploads a file/dir to s3"
+    root = Path(pathname).expanduser().resolve()
+    def handle_dir(target):
+        for p in target.iterdir():
+            if p.is_dir():
+                handle_dir(p)
+            if p.is_file():
+                try:
+                    object = str(p.resolve())
+                    key = str(p.relative_to(root))
+                    _upload_object_when_key_available(bucket, object, key)
+                except Exception as e:
+                    print(f"Could not upload {p}:", e)
+    handle_dir(root)
+
 
 
 if __name__ == "__main__":
