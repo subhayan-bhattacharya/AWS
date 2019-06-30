@@ -9,6 +9,8 @@ ipython = "*"
 [packages]
 boto3 = "*"
 click = "*"
+flake8 = "*"
+requests = "*"
 
 [requires]
 python_version = "3.7"
