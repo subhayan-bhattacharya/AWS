@@ -6,10 +6,8 @@ import json
 from pathlib import Path
 import mimetypes
 
-session = boto3.Session(profile_name="subhayan_aws")
-resource = session.resource("s3")
-
-
+session = None
+resource = None
 
 def _upload_object_to_s3(object: str, bucket: str, object_type: str, *args, **kwargs ) -> None:
     try:
@@ -35,9 +33,15 @@ def _upload_object_when_key_available(bucket: str, object: str, key: str) -> Non
 
 
 @click.group()
-def cli():
+@click.option('--profile', default=None)
+def cli(profile):
     "Uploads websites to AWS"
-    pass
+    global resource, session
+    session_cfg = {}
+    if profile:
+        session_cfg['profile_name'] = profile
+    session = boto3.Session(**session_cfg)
+    resource = session.resource("s3")
 
 @cli.command('enable-website-on-bucket')
 @click.argument('bucket')
