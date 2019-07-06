@@ -21,3 +21,20 @@ region_to_endpoint = {
     'eu-west-3': Endpoint('EU (Paris)', 's3-website.eu-west-3.amazonaws.com', 'Z3R1K369G5AVDG'),
     'sa-east-1': Endpoint('South America (São Paulo)', 's3-website-sa-east-1.amazonaws.com', 'Z7KQH4QJS55SO'),
 }
+
+
+def known_region(region: str) -> bool:
+    """
+    Returns true if this is a known region
+    :param region:
+    :return:
+    """
+    return region in region_to_endpoint
+
+def get_endpoint(region: str) -> str:
+    """
+    Returns the endpoint specific to a particular s3 region
+    :param region:
+    :return:
+    """
+    return region_to_endpoint[region].host

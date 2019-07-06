@@ -1,24 +1,30 @@
 from __future__ import annotations
+
+import json
+import mimetypes
+import os
+from pathlib import Path
+
 import boto3
 import click
-import os
-import json
-from pathlib import Path
-import mimetypes
+import utils
 
 session = None
 resource = None
 
-def _upload_object_to_s3(object: str, bucket: str, object_type: str, *args, **kwargs ) -> None:
+
+def _upload_object_to_s3(object: str, bucket: str, object_type: str, *args, **kwargs) -> None:
     try:
         if object_type == "file":
-            resource.Bucket(bucket).upload_file(Filename=object, Key=os.path.basename(object), *args, **kwargs)
+            resource.Bucket(bucket).upload_file(
+                Filename=object, Key=os.path.basename(object), *args, **kwargs)
         else:
             for dirs, subdir, files in os.walk(object):
                 for file in files:
                     full_file_name = os.path.join(dirs, file)
                     s3_file_name = os.path.join(os.path.basename(dirs), file)
-                    resource.Bucket(bucket).upload_file(Filename=full_file_name, Key=s3_file_name)
+                    resource.Bucket(bucket).upload_file(
+                        Filename=full_file_name, Key=s3_file_name)
     except Exception as e:
         raise e
 
@@ -32,6 +38,16 @@ def _upload_object_when_key_available(bucket: str, object: str, key: str) -> Non
         raise e
 
 
+def get_region_name(bucket):
+    bucket_location =  resource.meta.client.get_bucket_location(Bucket=resource.Bucket(bucket).name)
+    return bucket_location["LocationConstraint"] or 'us-east-1'
+
+
+def get_bucket_url(bucket):
+    """Get the website URL for this bucket."""
+    return f"http://{resource.Bucket(bucket).name}.{utils.get_endpoint(get_region_name(bucket))}"
+
+
 @click.group()
 @click.option('--profile', default=None)
 def cli(profile):
@@ -43,17 +59,18 @@ def cli(profile):
     session = boto3.Session(**session_cfg)
     resource = session.resource("s3")
 
+
 @cli.command('enable-website-on-bucket')
 @click.argument('bucket')
 def enable_website_on_bucket(bucket: str) -> None:
     "Enable web site hosting on the bucket"
     configuration = {
-            'ErrorDocument': {
-                'Key': 'error.html'
-            },
-            'IndexDocument': {
-                'Suffix': 'index.html'
-            }
+        'ErrorDocument': {
+            'Key': 'error.html'
+        },
+        'IndexDocument': {
+            'Suffix': 'index.html'
+        }
     }
     try:
         website_config = resource.Bucket(bucket).Website()
@@ -84,13 +101,14 @@ def make_bucket_public(bucket: str) -> None:
     except Exception as e:
         print("Something went wrong while updating the bucket policy: ", e)
 
+
 @cli.command('create-s3-bucket')
 @click.argument('bucket')
 def create_s3_bucket(bucket: str) -> None:
     "Creates an s3 bucket"
     try:
         resource.create_bucket(Bucket=bucket, CreateBucketConfiguration={
-        'LocationConstraint': session.region_name})
+            'LocationConstraint': session.region_name})
     except Exception as e:
         print("Could not create bucket: ", e)
 
@@ -122,12 +140,12 @@ def upload_object_to_bucket(bucket: str, object: str, object_type: str):
             raise NotADirectoryError(f"The object {object} is not a directory")
     try:
         if object_type == "file":
-            _upload_object_to_s3(object, bucket, object_type, ExtraArgs={"ContentType": 'text/html'})
+            _upload_object_to_s3(object, bucket, object_type, ExtraArgs={
+                                 "ContentType": 'text/html'})
         else:
             _upload_object_to_s3(object, bucket, object_type)
     except Exception as e:
         print("Something went wrong in uploading objects to s3:", e)
-
 
 
 @cli.command('list-buckets')
@@ -147,6 +165,7 @@ def list_buckets() -> None:
 def sync_dir(bucket: str, pathname: str) -> None:
     "Sync contents of pathname to bucket... very similar to the other command which uploads a file/dir to s3"
     root = Path(pathname).expanduser().resolve()
+
     def handle_dir(target):
         for p in target.iterdir():
             if p.is_dir():
@@ -159,8 +178,7 @@ def sync_dir(bucket: str, pathname: str) -> None:
                 except Exception as e:
                     print(f"Could not upload {p}:", e)
     handle_dir(root)
-
-
+    print(get_bucket_url(bucket))
 
 if __name__ == "__main__":
     cli()
