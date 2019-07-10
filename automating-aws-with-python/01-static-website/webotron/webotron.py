@@ -9,7 +9,7 @@ from hashlib import md5
 
 import boto3
 import click
-import utils
+from webotron import utils
 from functools import reduce
 
 session = None
